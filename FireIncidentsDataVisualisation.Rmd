@@ -1,0 +1,424 @@
+---
+title: "Fire Incidents - Data Visualisation Document"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Data fire incidents in Cape Town downloaded from site:
+#  https://odp-cctegis.opendata.arcgis.com/datasets/fire-incidences
+
+library(dplyr)
+library(lubridate)
+library(tidyverse)
+library(data.table)
+library(ggplot2)
+library(treemapify)
+library(scales)
+
+load("WorkingData/FireDataClean")
+ 
+FireDataClean.dt <- as.data.table(FireDataClean.df) #convert to data tble to easier manipulate
+FireDataClean.dt <- FireDataClean.dt[C_WaterUsage>0] #Only look at incidents where water was used
+```
+&nbsp;  
+
+#### This is the Data Visualisation report produced by ***Data Dialect*** on the Safety and Security - Fire incidents recorded and published by the City of Cape Town.  
+
+The Safety and Security incidents occurred between January 2009 to March 2018.
+The raw data is sourced from the [City of Cape Town open data portal](https://odp-cctegis.opendata.arcgis.com/datasets/fire-incidences). 
+
+The data is manipulated following the ***Data Dialect Data Wrangling Framework*** to produce a Tidy Data set 
+
+* Obtain
+
+* Scrub 
+
+* Explore 
+
+Using the advice from the **Data Quality Report produced** in the exploration step, the tidy data produced in the Scrub step can now be interpreted in this Data Visualisation report to address the business question.
+
+This document is produced by the Data Visualisation script  ***FireIncidentsDataVisualisation.rmd***.  The report focusses on incidents where water was used - excluding safety and security incidents that did not involve fire.
+
+## Water Used per Category
+
+Each incident is classified in a category.  This analysis looks at the average liters of water used for specific categories.
+
+The exploratory analysis showed two groups of category classifications used depending in the year of the incident: 
+
+1. Incidents occurring 2009 to 2015 are mostly classified as one of 2 categories. Within these two categories there are further 13 subcategories. Following the suggestion from the data quality report, for this period refer to the subcategories. 
+
+2. Incidents occurring 2016 to 2018 are classified into 65 categories and around 190 subcategories. Following the suggestion from the data quality report, for this period refer to the categories rather than the more granular sub-categories.
+
+```{r categories, echo=FALSE}
+###############################################################
+###############################################################
+# Category analysis
+#
+# Categories differ over three periods - cannot compare the periods with each other
+# 1. Group A - January 2009 to December 2015 
+# 2. Group B - January 2016 to August 2016
+# 3. Group C - September 2016 to March 2018
+#
+# Group A has two main Categories each - refer to the Sub Categories
+# Group B volumes are so low, add the subcategories to the group C categories 
+# Group C has multiple Categories and a fine devision of Sub Categories - refer to the Categories
+###############################################################
+###############################################################
+```
+
+### Incidents recorded January 2009 to December 2015
+
+```{r categoriesA, echo=FALSE}
+###############################################################
+# Group A
+# January 2009 to December 2015
+###############################################################
+FireDataCleanA.dt <- FireDataClean.dt[A_CreatedAt<as.Date("2016-01-01")]
+FireDataCleanA.dt[E_Sub_Category=="VEGETATION", E_Sub_Category:="VEGETATION ALIGHT"] #Collapse similar categories
+#Get unique column values, ordered by Category, Count incidents and sum water usage
+CategoriesA.dt <- FireDataCleanA.dt[,.(count = .N,sum(C_WaterUsage)), by=list(E_Sub_Category)]
+names(CategoriesA.dt) <- c("Category","Incidents","Total_Water_Used")
+CategoriesA.dt$Average_Water_Used <- CategoriesA.dt$Total_Water_Used/CategoriesA.dt$Incidents
+CategoriesA.dt<-CategoriesA.dt[Average_Water_Used>0] %>% 
+  setorder(-Average_Water_Used)
+
+#Bar chart of average water used per incident, number of incidents in gold
+p1 <- ggplot(CategoriesA.dt , aes(x = reorder(Category,Average_Water_Used), y = Average_Water_Used))+
+  geom_col(aes(fill = Average_Water_Used), width = 0.7)+
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        plot.title = element_text(hjust = 0.5,size=12, colour = "royalblue4", face="bold"),
+        legend.position="none")+
+  ggtitle(label="Average water used per incident (2009 - 2015)")+
+  labs(x="",y="Water Used")+
+  scale_y_continuous(labels = scales::comma) 
+
+#Variable to use in text
+PF_Cat<-CategoriesA.dt[1,Category]
+PF_Inc<-CategoriesA.dt[1,Incidents]
+PF_Ave<-CategoriesA.dt[1,Average_Water_Used]
+
+AGR_Cat<-CategoriesA.dt[2,Category]
+AGR_Inc<-CategoriesA.dt[2,Incidents]
+AGR_Ave<-CategoriesA.dt[2,Average_Water_Used]
+
+RGB_Cat<-CategoriesA.dt[3,Category]
+RGB_Inc<-CategoriesA.dt[3,Incidents]
+RGB_Ave<-CategoriesA.dt[3,Average_Water_Used]
+#Get average water usage
+aveA.dt <- FireDataCleanA.dt[,.(count = .N,sum(C_WaterUsage))] 
+aveA <- aveA.dt$V2/aveA.dt$count
+
+CategoriesA.dt$blockLabel <- paste(CategoriesA.dt$Category, round(CategoriesA.dt$Incidents /aveA.dt$count*100,digits=0)," % of incidents",sep="\n")
+
+p7 <- ggplot(CategoriesA.dt, aes(area = Incidents, fill = Incidents, label = blockLabel)) +
+  geom_treemap(color = "darkgoldenrod3",fill = "lightgoldenrod3", size=5) +
+  geom_treemap_text(colour = "white", place = "center", reflow = T) +
+  theme(legend.position="none",
+        plot.title = element_text(hjust = 0.5,size=12, colour = "darkgoldenrod3",face="bold"))+
+  ggtitle(label = "Number of incidents per category (2009 - 2015)") 
+```
+
+```{r fig1, fig.height = 5, fig.width = 10, fig.align = "center", echo=FALSE}
+plot(p1)
+
+```
+
+The 2009 - 2015 incidents have very skewed classifications.  **`r PF_Cat`** has a very high average water use of **`r format(PF_Ave,big.mark=" ")`** liters per incident derived from **`r format(PF_Inc,big.mark=" ")`** incidents.  Along with **`r AGR_Cat`** it dwarfs the other categories in average water used. 
+
+```{r fig7, fig.height = 3, fig.width = 5, fig.align = "center", echo=FALSE}
+plot(p7)
+
+```
+Most of the incidents, **`r format(RGB_Inc,big.mark=" ")`**, are recorded in **`r RGB_Cat`** with an average consumption of  **`r format(RGB_Ave,big.mark=" ")`** liters per incident. The high number of incidents in this category means the impact of outliers is diluted.  Unfortunately it also means most of the incidents, (**`r format(RGB_Inc/aveA.dt$count*100,digits=2)`%**), are concentrated in this one category.
+
+### Incidents recorded January 2016 to March 2018
+
+City of Cape Town used more specific categories from 2016 onwards.  **`r PF_Cat`** and  **`r AGR_Cat`** also no longer appears at fire categories.
+
+```{r categoriesB, echo=FALSE}
+###############################################################
+# Group B
+# January 2016 to September 2016
+###############################################################
+FireDataCleanB.dt <- FireDataClean.dt[A_CreatedAt>=as.Date("2016-01-01") & A_CreatedAt<as.Date("2016-10-01")]
+FireDataCleanB.dt$D_Category <- FireDataCleanB.dt$E_Sub_Category
+#FireDataCleanB.dt[D_Category=="OTHER", D_Category:="OTHER FIRE"] #Change category name to fit with GroupC
+FireDataCleanB.dt[D_Category=="COMMERCIAL", D_Category:="COMMERCIAL FIRE"] #Change category name to fit with GroupC
+###############################################################
+# Group C
+# October 2016 to March 2018
+###############################################################
+FireDataCleanC.dt <- FireDataClean.dt[A_CreatedAt>=as.Date("2016-10-01")]
+###############################################################
+#Bind the two groups
+l = list(FireDataCleanB.dt,FireDataCleanC.dt)
+FireDataCleanBC.dt <- rbindlist(l)
+FireDataCleanBC.dt[E_Sub_Category=="OTHER FIRE - RUBBISH, GRASS AND BUSH",D_Category := "RUBBISH, GRASS AND BUSH"]
+FireDataCleanBC.dt[E_Sub_Category=="OTHER FIRE - MISCELLANEOUS FIRES",D_Category := "OTHER"]
+
+#Get unique column values, ordered by Category, Count incidents and sum water usage
+CategoriesBC.dt <- FireDataCleanBC.dt[,.(count = .N,sum(C_WaterUsage)), by=list(D_Category)] %>% 
+  setorder()
+names(CategoriesBC.dt) <- c("Category","Incidents","Total_Water_Used")
+CategoriesBC.dt$Average_Water_Used <- CategoriesBC.dt$Total_Water_Used/CategoriesBC.dt$Incidents
+#CategoriesBC.dt<-head(CategoriesBC.dt[order(-(Average_Water_Used))],10)
+CategoriesBC.dt<-CategoriesBC.dt[Average_Water_Used>0]%>% 
+  setorder(-Average_Water_Used)
+max_y <- (CategoriesBC.dt[order(-Average_Water_Used)]$Average_Water_Used[1]/10)*11
+
+#Bar chart of average water used per incident, number of incidents in gold
+p2 <- ggplot(CategoriesBC.dt , aes(x = reorder(Category,Average_Water_Used), y = Average_Water_Used))+
+  geom_col(aes(fill = Average_Water_Used), width = 0.7)+
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        plot.title = element_text(hjust = 0.5,size=12, colour = "royalblue4", face="bold"),
+        legend.position="none")+
+  ggtitle(label="Average water used per incident (2016 to March 2018)")+
+  labs(x="",y="Water Used")+
+  scale_y_continuous(labels = scales::comma) 
+
+#Variables to use in text
+F_Cat<-CategoriesBC.dt[1,Category]
+F_Inc<-CategoriesBC.dt[1,Incidents]
+F_Ave<-CategoriesBC.dt[1,Average_Water_Used]
+
+S_Cat<-CategoriesBC.dt[2,Category]
+S_Inc<-CategoriesBC.dt[2,Incidents]
+S_Ave<-CategoriesBC.dt[2,Average_Water_Used]
+
+T_Cat<-CategoriesBC.dt[3,Category]
+T_Inc<-CategoriesBC.dt[3,Incidents]
+T_Ave<-CategoriesBC.dt[3,Average_Water_Used]
+#Get average water usage
+aveBC.dt <- FireDataCleanBC.dt[,.(count = .N,sum(C_WaterUsage))] 
+aveBC <- aveBC.dt$V2/aveBC.dt$count
+
+CategoriesBCInc.dt<-CategoriesBC.dt%>% 
+  setorder(-Incidents)
+
+F_CatInc<-CategoriesBCInc.dt[1,Category]
+F_IncInc<-CategoriesBCInc.dt[1,Incidents]
+F_AveInc<-CategoriesBCInc.dt[1,Average_Water_Used]
+
+S_CatInc<-CategoriesBCInc.dt[2,Category]
+S_IncInc<-CategoriesBCInc.dt[2,Incidents]
+S_AveInc<-CategoriesBCInc.dt[2,Average_Water_Used]
+
+T_CatInc<-CategoriesBCInc.dt[3,Category]
+T_IncInc<-CategoriesBCInc.dt[3,Incidents]
+T_AveInc<-CategoriesBCInc.dt[3,Average_Water_Used]
+
+CategoriesBC.dt$blockLabel <- paste(CategoriesBC.dt$Category, round(CategoriesBC.dt$Incidents /aveBC.dt$count*100,digits=0)," % of incidents",sep="\n")
+
+p8 <- ggplot(CategoriesBC.dt, aes(area = Incidents, fill = Incidents, label = blockLabel)) +
+  geom_treemap(color = "darkgoldenrod3",fill = "lightgoldenrod3", size=5) +
+  geom_treemap_text(colour = "white", place = "center", reflow = T) +
+  theme(legend.position="none",
+        plot.title = element_text(hjust = 0.5,size=12, colour = "darkgoldenrod3",face="bold"))+
+  ggtitle(label = "Number of incidents per category (2016 - March 2018)") 
+
+```
+
+```{r fig2, fig.height = 10, fig.width = 10, fig.align = "center", echo=FALSE}
+plot(p2)
+
+```
+
+**`r F_Cat`** is on average the biggest consumer of water with and average consumption of **`r format(F_Ave,big.mark=" ")`** liters per incident.
+
+```{r fig8, fig.height = 3, fig.width = 5, fig.align = "center", echo=FALSE}
+plot(p8)
+
+```
+
+The most incidents, **`r format(F_IncInc,big.mark=" ")`**, are recorded in **`r F_CatInc`** which makes up (**`r format(F_IncInc/aveBC.dt$count*100,digits=2)`%**) of the total amount of incidents in this period.
+
+#### Comparing the two periods
+
+1. As noted in the Data Exploration report, when measuring water used, most of the outliers are in the 2009-2015 period. Combined with the incidents concentrated in a single category, it renders the category data for this period vulnerable to be skewed.
+
+2. In the 2016-2018 period there is no reference to **`r PF_Cat`** or **`r AGR_Cat`** fires that featured as both high consumers of water and low count of incidents in the previous period.  It is possible that the City of Cape Town decided to track these two categories separately for their low frequency and high intensity need for water.
+
+3. The new classification used by the City of Cape Town from 2016 onwards makes the data much more suitable for comparison and analysis than the limited classes in the 2009 to 2015 period.  Although **`r format(F_IncInc,big.mark=" ")`** is still the largest classification for fires in the later period, there are now more classifications to work with.
+
+```{r averageWater, echo=FALSE}
+#Get average water usage
+aveA.dt <- FireDataCleanA.dt[,.(count = .N,sum(C_WaterUsage))] 
+aveA.dt$group <- "2009 to 2015"
+aveBC.dt <- FireDataCleanBC.dt[,.(count = .N,sum(C_WaterUsage))] 
+aveBC.dt$group <- "2016 to 2018"
+ave.dt <- list(aveA.dt,aveBC.dt) %>%
+  rbindlist
+ave.dt$average <- round(ave.dt$V2/ave.dt$count,0)
+ave.dt$blockLabel <- paste(ave.dt$group, "average:",format(ave.dt$average,big.mark=" "),sep="\n")
+
+p6 <- ggplot(ave.dt, aes(area = average, fill= average,label = blockLabel)) +
+  geom_treemap(color = "royalblue4",size=5) +
+  geom_treemap_text(colour = "white", place = "center", reflow = T) +
+  theme(legend.position="none",
+        plot.title = element_text(hjust = 0.5,size=12, colour = "royalblue4",face="bold"))+
+  ggtitle(label = "Average liters of Water used per incident in each period")+
+  labs(fill = "average")
+
+FireDataCleanA2.dt <- FireDataCleanA.dt[!(E_Sub_Category %in% c("PLANTATION/FOREST", "AGRICULTURE"))]
+aveA.dt <- FireDataCleanA2.dt[,.(count = .N,sum(C_WaterUsage))] 
+aveA.dt$group <- "2009 to 2015"
+aveBC.dt <- FireDataCleanBC.dt[,.(count = .N,sum(C_WaterUsage))] 
+aveBC.dt$group <- "2016 to 2018"
+ave.dt <- list(aveA.dt,aveBC.dt) %>%
+  rbindlist
+ave.dt$average <- round(ave.dt$V2/ave.dt$count,0)
+ave.dt$blockLabel <- paste(ave.dt$group, "average:",format(ave.dt$average,big.mark=" "),sep="\n")
+
+p9 <- ggplot(ave.dt, aes(area = average, fill= average,label = blockLabel)) +
+  geom_treemap(color = "royalblue4",size=5) +
+  geom_treemap_text(colour = "white", place = "center", reflow = T) +
+  theme(legend.position="none",
+        plot.title = element_text(hjust = 0.5,size=12, colour = "royalblue4",face="bold"))+
+  ggtitle(label = "Average liters of Water used per incident in each period, excluding PLANTATION/FOREST and AGRICULTURE")+
+  labs(fill = "average")
+```
+
+```{r fig6, fig.height = 3, fig.width = 10, fig.align = "center", echo=FALSE}
+ plot(p6)
+```
+ 
+ 4. The average water consumption per incident for the 2016-2018 period is much lower that for the 2009 to 2015 period.  
+ 
+```{r fig9, fig.height = 3, fig.width = 10, fig.align = "center", echo=FALSE}
+ plot(p9)
+```
+
+ 5. Did the City of Cape Town exclude forest fires from their records from 2016 onwards ?  Is the difference in average water consumption because the thirsty forest fires are no longer included in the records?  If we exclude **`r PF_Cat`** and **`r AGR_Cat`** the averages are closer but still far apart.  This suggest the forest fire records are still recorded but under different category or subcategory.
+
+## Cause and Resolution
+
+Looking at a heat map of the frequency  the cause and resolution of incidents January 2009 to March 2018, there is a very clear pattern.
+
+```{r CauseAndResolution, echo=FALSE}
+CauseResolution.dt <- FireDataClean.dt[,.(count = .N,sum(C_WaterUsage)), by=list(H_Cause,I_Resolution)] %>% 
+  setorder()
+CauseResolution.dt <- CauseResolution.dt[!(H_Cause=='N/A')]
+CauseResolution.dt <- CauseResolution.dt[!(I_Resolution=='N/A')]
+names(CauseResolution.dt) <- c("Cause","Resolution","Incidents","Total_Water_Used")
+CauseResolution.dt$Average_Water_Used <- CauseResolution.dt$Total_Water_Used/CauseResolution.dt$Incidents
+CauseResolution.dt<-CauseResolution.dt[Average_Water_Used>0]
+#Heat map of cause and resolution by number of incidents
+p3 <- ggplot(CauseResolution.dt, aes(x = Resolution,y = Cause))+  
+  geom_tile(aes(fill = Incidents),color = "darkgoldenrod3")+
+  scale_fill_gradient(low = "lightgoldenrod3", high = "red")+
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        legend.position="none",
+        plot.title = element_text(hjust = 0.5,size=12, face="bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  ggtitle(paste("Cause and Resolution by Number of Incidents"))+
+  labs(x = "Resolution",fill="Number of incidents", y="Cause")
+```
+
+```{r fig3, fig.height = 8, fig.width = 8, fig.align = "center", echo=FALSE}
+plot(p3)
+```
+
+Not surprisingly most fire incidents were caused by Open Flames and resolved by manually extinguishing the fire.  Smoking is also a significant cause of fires.  There is a large portion where the cause is undetermined.
+
+
+## Incidents per Town classifications
+
+```{r TownSuburb, echo=FALSE}
+###############################################################
+###############################################################
+# Town analysis with treemaps
+#
+###############################################################
+###############################################################
+#Count Town where fire occured 
+FDTown.dt <-FireDataClean.dt[,.(count = .N,sum(C_WaterUsage)), by=list(F_Town)]  
+FDTown.dt$C_AveWaterUsage <- FDTown.dt[,V2/count]
+
+## Treemap of number of occurences per Town
+p4 <- ggplot(FDTown.dt, aes(area = count, fill= C_AveWaterUsage,label = F_Town)) +
+  geom_treemap(color = "darkgoldenrod3",size=5) +
+  geom_treemap_text(colour = "white", place = "topleft", reflow = T) +
+  theme(plot.title = element_text(hjust = 0.5,size=12, colour = "darkgoldenrod3", face="bold"),
+     #   legend.position="none",
+        plot.subtitle = element_text(hjust = 0.5,size=12, colour = "royalblue4",face="bold"))+
+  ggtitle(subtitle = "Blue - Average liters of Water used per incident",
+          label = "Size - Number of incidents")+
+  labs(fill = "Liters of water")
+
+FDTownA.dt <-FireDataCleanA.dt[,.(count = .N,sum(C_WaterUsage)), by=list(F_Town)]  
+FDTownA.dt$C_AveWaterUsage <- FDTownA.dt[,V2/count]
+
+```
+
+A great deal of data wrangling went into cleaning up the town and suburb fields. Ultimately the data determine what was classified as a town and what was classified as a suburb - the details of this logic are in the exit report.
+
+```{r fig4, fig.height = 5, fig.width = 8, fig.align = "center", echo=FALSE}
+plot(p4)
+```
+
+The treemap report give two dimensions of information. The number of incidents is represented in the size of the block and the average liters of water per incident are represented in the colour of the block. The greatest water consumption per Town is in the South Peninsula closely followed by Helderberg and Blaauwberg.
+
+It would be worth looking in more detail why the fires in South Peninsula on average requires much more water than those in the Tygerberg and how does that impact water supplies and infrastructure.
+
+## Analysis incidents over time
+
+```{r TimeSeries, echo=FALSE}
+
+###############################################################
+###############################################################
+# Time analysis
+#  Number of incidents and total liters of water used per month
+###############################################################
+###############################################################
+#Get unique column values, ordered by Category, Count incidents and sum water usage and month
+IncidentsAM.dt <- FireDataCleanA.dt[,.(count = .N,sum(C_WaterUsage)), by=format(FireDataCleanA.dt$A_CreatedAt,'%Y%m')] %>%
+  setorder()
+names(IncidentsAM.dt) <- c("YearMonth","Incidents","Total_Water_Used")
+IncidentsAM.dt$Average_Water_Used <- IncidentsAM.dt$Total_Water_Used/IncidentsAM.dt$Incidents
+
+  # --------------------------------------------------------------------------------------------
+  # Two graphs on one plot with date as the common x-axis
+  #  geom_bar graph represents the number of incidents
+  #  geom_line graph represents the total water used in turquoise
+
+  p5 <-ggplot(IncidentsAM.dt, aes(x=YearMonth)) +
+    geom_bar(aes(weight = Incidents), colour = "darkgoldenrod3", fill = "lightgoldenrod3") +
+    geom_line(aes(y=Total_Water_Used/10000), colour = "royalblue4", size = 2, group = 1) + 
+  theme(axis.text.y = element_blank(),
+          legend.title = element_blank(),
+          legend.position="top",
+          plot.title = element_text(hjust = 0.5,size=12, colour = "darkgoldenrod3", face="bold"),
+          plot.subtitle = element_text(hjust = 0.5,size=12, colour = "royalblue4",face="bold"))+
+    scale_x_discrete(breaks=c("200901","201001","201101","201201","201301","201401","201501"),
+          labels=c("Jan 2009", "Jan 2010", "Jan 2011", "Jan 2012", "Jan 2013", "Jan 2014", "Jan 2015"))+
+    labs(x = "Month of incident", y = "")+
+    ggtitle(subtitle = "Total liters of Water used per month",
+          label = "Number of incidents")
+```
+
+The time analysis is limited to the period 2009 to 2015.  Referring to the Data Quality report the data from 2016 is not suited for time analysis.
+
+```{r fig5, fig.height = 5, fig.width = 10, fig.align = "center", echo=FALSE}
+plot(p5)
+```
+
+Comparing the change in number of incidents in gold and average liters of water used per month in blue, both measures peak in the summer months, more specifically December and January.  This is to be expected - Cape Town is in a winter rainfall region with very dry, hot and windy summers.  Since most fires the City of Cape Town recorded are caused by Open Flames, these would make ideal conditions for fires to flare up.
+
+## Close Out
+
+Further clarification is needed from the City of Cape Town on:
+
+1. The criteria for classification of incidents from 2016 onwards.  More specifically which classification includes Forest fires.
+
+2. How town and suburb is selected and recorded.  Based on the level of data wrangling that was necessary to clean up these two columns, town and suburb is left to discretion.  Judging from the number of typos these were also typed in rather than selected from a drop-down menu. 
+
+3. The reason for the increase in volume of incidents in 2018 and 2018.  Is a larger area covered under the City of Cape Town data collection ?  Why is the data from 2016 incomplete and the volume over the different quarters so irregular?
+
+This exercise of Data Wrangling and Data Visualisation was derived from data published on the City of Cape Town data portal without any further input from the City of Cape Town.  
+
+The analysis was done to demonstrate of the Data Dialect data wrangling work frame and not applied for any commercial use.
+
+
+(Report copy right and property of Data Dialect)
