@@ -1,0 +1,351 @@
+---
+title: "Cape Town Fire Incidents - Data Quality Report"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Data fir incidents in Cape Town downloaded from site:
+#  https://odp-cctegis.opendata.arcgis.com/datasets/fire-incidences
+
+library(dplyr)
+library(lubridate)
+library(tidyverse)
+library(data.table)
+library(readxl)
+library(ggrepel)
+
+load("WorkingData/FireDataClean")
+
+#### Data Table checks
+FireDataClean.dt <- as.data.table(FireDataClean.df) #convert to data table to easier manipulate
+```
+
+***
+
+#### This is the Data Quality report produced by ***Data Dialect*** on the Safety and Security - Fire incidents recorded and published by the City of Cape Town.  
+
+The Safety and Security incidents occurred between January 2009 to March 2018.
+The raw data is sourced from the [City of Cape Town open data portal](https://odp-cctegis.opendata.arcgis.com/datasets/fire-incidences).  
+
+The data is manipulated following the ***Data Dialect Data Wrangling Framework*** to produce a Tidy Data set 
+
+* Obtain
+
+* Scrub 
+
+* Explore 
+
+This document is the product of the **Explore** step and is produced by the Data Exploration script  ***FireIncidentsDataQuality.rmd***.  It investigates the quality of the data, identifying weaknesses that could impact the quality of the analysis results.  The report also indicates whether the data is suitable to address the business question.
+
+***
+
+## Number of incomplete values per year
+
+After the scrubbing there are still missing values marked as Not Applicable (N/A). What proportion of the values are empty or marked as Not Applicable (NA) for each of the measures? For some incidents an N/A value might be the correct value ex. a false alarm would not necessarily have a cause and resolution. In other instances the entries are incomplete. Incomplete entries will impact the ability to interpret and analise the data. The stacked bar chart shows the NA values per measure per year.
+
+```{r NAChecks, echo=FALSE}
+################################################
+################################################
+# Check number of NAs after cleanup
+################################################
+################################################
+
+################################################
+# Per Year Data Table melt - NA vs rest
+################################################
+# Calculate the NA per year in a data frame
+VarperY.df <- FireDataClean.df %>% 
+  group_by(year(A_CreatedAt))
+colnames(VarperY.df)[ncol(VarperY.df)] <- "A_Year"
+NAperY.df <- VarperY.df %>% 
+  group_by(A_Year) %>%
+  summarize(C_WaterUsage=sum(C_WaterUsage=="N/A"), D_Category=sum(D_Category=="N/A"), E_Sub_Category=sum(E_Sub_Category=="N/A"), F_Suburb=sum(F_Suburb=="N/A"), F_Town=sum(F_Town=="N/A"), G_SubCouncil = sum(G_SubCouncil=="N/A"), G_District = sum(G_District=="N/A"), H_Cause = sum(H_Cause=="N/A"), I_Resolution = sum(I_Resolution=="N/A"), J_Temperature = sum(J_Temperature=="N/A"), K_Count = sum((A_CreatedAt>="2009-01-01 00:00:00")))
+
+##Define the data table showing the NA per year per measure
+NAperYMelt.dt <-as.data.table(NAperY.df)
+NAperYMelt.dt <- melt(NAperYMelt.dt,id=c("A_Year"),
+                      measure.vars=c("C_WaterUsage","D_Category","E_Sub_Category","F_Suburb","F_Town","G_SubCouncil","G_District","H_Cause","I_Resolution","J_Temperature"))
+colnames(NAperYMelt.dt) <- c("Year","Measure", "NAs")
+
+##Define the data table showing the values per year per measure
+RestperYMelt.dt <-as.data.table(NAperY.df)
+RestperYMelt.dt$C_WaterUsage_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$C_WaterUsage
+RestperYMelt.dt$D_Category_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$D_Category
+RestperYMelt.dt$E_Sub_Category_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$E_Sub_Category
+RestperYMelt.dt$F_Suburb_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$F_Suburb
+RestperYMelt.dt$F_Town_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$F_Town
+RestperYMelt.dt$G_District_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$G_District
+RestperYMelt.dt$G_SubCouncil_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$G_SubCouncil
+RestperYMelt.dt$H_Cause_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$H_Cause
+RestperYMelt.dt$I_Resolution_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$I_Resolution
+RestperYMelt.dt$J_Temperature_Rest <- RestperYMelt.dt$K_Count - RestperYMelt.dt$J_Temperature
+RestperYMelt.dt <- melt(RestperYMelt.dt,id=c("A_Year"),
+                      measure.vars=c("C_WaterUsage_Rest","D_Category_Rest","E_Sub_Category_Rest","F_Suburb_Rest","F_Town_Rest","G_SubCouncil_Rest", "G_District_Rest","H_Cause_Rest", "I_Resolution_Rest","J_Temperature_Rest"))
+colnames(RestperYMelt.dt) <- c("Year","Measure", "Value")
+RestperYMelt.dt$Measure <- substr(RestperYMelt.dt$Measure,1,nchar(as.character(RestperYMelt.dt$Measure))-5)
+
+#Join the two data tables
+perYMelt.dt <- RestperYMelt.dt[NAperYMelt.dt, on = .(Year,Measure)]
+# Use Year and measure as a key in the melt and then do a plot on total or do a facet wrap per measure
+AllperYMelt.dt <- melt(perYMelt.dt,id=c("Year","Measure"),measure.vars=c("Value","NAs"))
+
+#plot bar chart of total NA vs Value for each year
+#do a facet wrap per measure 
+p8 <- ggplot(AllperYMelt.dt, aes(Year,value,fill = variable)) + 
+  geom_bar(stat="identity", width=.5, position = "fill") + #fill - normalise to fill  up
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position = "top",
+        plot.title = element_text(hjust = 0.5,size=14, face="bold"))+
+  ggtitle(paste("NA entries relative to Values for each measure by year"))+
+  labs(fill = "Measures",x="Year",y="Number of Non Applicables versus Values")+
+  #scale_fill_discrete(name = "",labels = c("Value", "NA"))+
+  scale_fill_manual(name = "",values = c("Value"="lightgoldenrod3","NAs"="seashell4"))+
+  facet_wrap(~Measure,ncol = 1)+
+  scale_x_discrete(limits=c(2009,2010,2011,2012,2013,2014,2015,2016,2017,2018))
+```
+
+***
+
+```{r fig8, fig.height = 10, fig.width = 10, fig.align = "center", echo=FALSE}
+plot(p8)
+```
+
+***
+
+For 2016 the SubCouncil and Cause fields are mostly incomplete.  This is expected - the fields were not available in most of the source files for this year.  The same goes for Cause in 2017.  Across all years, measures like Cause and Temperature have a consistent portion of N/A entries and District increasing a bit in the later years. Sub Council and Resolution have N/A entries in the later years.
+
+Some measures - like Temperature - is only relevant when the incidents involve fire.  It is possible if we exclude the incidents that did not involve the use of water (i.e. emergency callouts but not fire incidents), the entries will appear more complete.
+
+Below graphs compare the actual number (as opposed to proportion) of N/A entries with and without incidents that do not include the use of water.
+
+```{r ZeroWater, echo=FALSE}
+ZWNAperY.df <- VarperY.df[VarperY.df$C_WaterUsage>0,]
+ZWNAperY.df <- ZWNAperY.df %>% 
+  group_by(A_Year) %>%
+  summarize(C_WaterUsage=sum(C_WaterUsage=="N/A"), D_Category=sum(D_Category=="N/A"), E_Sub_Category=sum(E_Sub_Category=="N/A"), F_Suburb=sum(F_Suburb=="N/A"), F_Town=sum(F_Town=="N/A"), G_SubCouncil = sum(G_SubCouncil=="N/A"), G_District = sum(G_District=="N/A"), H_Cause = sum(H_Cause=="N/A"), I_Resolution = sum(I_Resolution=="N/A"), J_Temperature = sum(J_Temperature=="N/A"), K_Count = sum((A_CreatedAt>="2009-01-01 00:00:00")))
+
+ZWNAperYMelt.dt <-as.data.table(ZWNAperY.df)
+ZWNAperYMelt.dt <- melt(ZWNAperYMelt.dt,id=c("A_Year"),
+                      measure.vars=c("C_WaterUsage","D_Category","E_Sub_Category","F_Suburb","F_Town","G_SubCouncil", "G_District","H_Cause","I_Resolution","J_Temperature"))
+colnames(ZWNAperYMelt.dt) <- c("Year","Measure", "Only Incidents where water was used")
+NAperYMelt1.dt <- NAperYMelt.dt
+colnames(NAperYMelt1.dt) <- c("Year","Measure", "All Incidents")
+
+#Join the two data tables
+ZWperYMelt.dt <- NAperYMelt1.dt[ZWNAperYMelt.dt, on = .(Year,Measure)]
+# Use Year and measure as a key in the melt and then do a plot on total or do a facet wrap per measure
+ZWAllperYMelt.dt <- melt(ZWperYMelt.dt,id=c("Year","Measure"),measure.vars=c("All Incidents","Only Incidents where water was used"))
+
+p10 <- ggplot(ZWAllperYMelt.dt, aes(Year,value, group=Measure, colour=Measure)) + 
+  geom_line(linetype = "solid",size=2) +
+  geom_point(size=2, color="black") +
+  theme(plot.title = element_text(hjust = 0.5,size=14, face="bold"))+
+  ggtitle(paste("Number of NA values per incident by year"))+
+  labs(fill = "Measure",x="Year",y="Number of NAs")+
+  facet_wrap(~variable,ncol = 1)+
+  scale_x_discrete(limits=c(2009,2010,2011,2012,2013,2014,2015,2016,2017,2018))
+```
+
+***
+
+```{r fig10, fig.height = 7, fig.width = 10, fig.align = "center", echo=FALSE}
+plot(p10)
+```
+
+If we only look at incidents where water was used, the number of N/A entries drops to 0 for almost all years for all the measures except for Cause and District in 2016 and 2017.  This was expected - these measures were not available in the source files for these 2 years.  The data is as complete as can be for incidents where water was used. 
+
+***
+
+**Recommendation:**
+
+To work with complete entries, limit the analysis to incidents that involved the use of water.  Treat the entries for 2016 and 2017 with caution where Cause and District is involved.
+
+***
+
+## Outliers with liters of water used
+```{r Water, echo=FALSE}
+p15 <- ggplot(FireDataClean.dt, aes(y=C_WaterUsage,x=format(A_CreatedAt,'%Y%m'))) +
+  geom_point() +
+  geom_text_repel(data = subset(FireDataClean.dt, C_WaterUsage >1000000), color="red", aes(label = B_Service_Request))+
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        plot.title = element_text(hjust = 0.5,size=14, face="bold"))+
+  scale_y_continuous(labels = scales::comma) +
+  ggtitle(paste("Water used per incident - outliers more than 1,000,000 liters"))+
+  labs(x="Month",y="Liters of water")+
+  scale_x_discrete(breaks=c("200901","201001","201101","201201","201301","201401","201501","201601","201701","201801"),labels=c("Jan 2009","Jan 2010","Jan 2011","Jan 2012","Jan 2013","Jan 2014","Jan 2015","Jan 2016","Jan 2017","Jan 2018"))
+
+t.dt<- FireDataClean.dt[, group := cut(FireDataClean.dt$C_WaterUsage , breaks = c(0,59999,999999,10000010))]  
+t2.dt <- t.dt[, .(count = .N), by = group]
+
+nowater<-t2.dt[1,count]
+toFifty<-t2.dt[2,count]
+toMil<-t2.dt[3,count]
+toTenMil<-t2.dt[4,count]
+incidents <- toFifty + toMil + toTenMil
+
+```
+
+```{r fig15, fig.height = 5, fig.width = 10, fig.align = "center", echo=FALSE}
+plot(p15)
+
+```
+
+***
+
+Of the **`r format(incidents,big.mark=" ")`** incidents where water was used, there are only **`r format(toTenMil,big.mark=" ")`** incidents where more than 1 000 000 liters of water was used (highlighted in the plot above) and **`r format(toMil,big.mark=" ")`** used between 50 000 and 1 000 000 liters.  These outliers will skew averages if the data is grouped.  In contrast, of the **`r format(incidents,big.mark=" ")`** incidents where water was used, **`r format(toFifty,big.mark=" ")`** required less than 50 000 liters of water.  
+
+***
+
+**Recommendation:**
+
+When reviewing groups of incidents based on their average water consumption, consider excluding incidents where more than 50 000 liters were used or at least exclude incidents where more than 1 000 000 liters were used. These are a small number of outliers that could skew group analysis.
+
+Note that most of the incidents using more than a million liters of water occurred in the period 2009 to 2015.  In only 3 incidents post 2015 were more than a million liters of water used.
+
+***
+
+## Incident Categories
+
+Each incident is classified in a category and sub-category (or the field is marked as N/A).  Are the classifications consistent and complete over different years?
+Use heat maps to see how Category and SubCategory classification is spread over the 9 years.
+
+***
+
+### Number of incidents per Category per year
+
+```{r Category, echo=FALSE}
+
+################################################
+# Category and Sub Categories accross the years
+################################################
+CategoriesperY.dt <- FireDataClean.dt[,.(count = .N), by=list(D_Category,format(FireDataClean.dt$A_CreatedAt,'%Y'))] %>% 
+  setorder()
+names(CategoriesperY.dt) <- c("Category","Year","CountN")
+#Heat map of categories per year
+p20 <- ggplot(CategoriesperY.dt, aes(x = Year,y = Category))+  
+  geom_tile(aes(fill = CountN),color = "darkgoldenrod3")+
+  scale_fill_gradient(low = "lightgoldenrod3", high = "firebrick3")+
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position="none",
+        plot.title = element_text(hjust = 0.5,size=12, face="bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  ggtitle(paste("Heat map of the incidents Category per year"))+
+  labs(x = "Year",fill="Count", y="Categories")
+```
+
+```{r fig20, fig.height = 5, fig.width = 8, fig.align = "center", echo=FALSE}
+plot(p20)
+```
+
+***
+
+### Number of incidents per SubCategory per year
+
+```{r SubCategory, echo=FALSE}
+
+SubCategoriesperY.dt <- FireDataClean.dt[,.(count = .N), by=list(E_Sub_Category,format(FireDataClean.dt$A_CreatedAt,'%Y'))] %>% 
+  setorder()
+names(SubCategoriesperY.dt) <- c("SubCategory","Year","CountN")
+#Heat map of Sub categories per year
+p21 <- ggplot(SubCategoriesperY.dt, aes(x = Year,y = SubCategory))+  
+  geom_tile(aes(fill = CountN),color = "darkgoldenrod3")+
+  scale_fill_gradient(low = "lightgoldenrod3", high = "firebrick3")+
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        legend.position="none",
+        plot.title = element_text(hjust = 0.5,size=12, face="bold"),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())+
+  ggtitle(paste("Heat map of the incidents Sub Category per year"))+
+  labs(x = "Year",fill="Count", y="Sub Categories")
+```
+
+```{r fig21, fig.height = 10, fig.width = 8, fig.align = "center", echo=FALSE}
+plot(p21)
+```
+
+***
+
+It appears the City of Cape Town changed the way incidents were classified in 2016, creating two groups of classifications based on date.  
+
+1. Incidents occurring 2009 to 2015 are classified as one of two categories.  Within these two categories there are further 13 subcategories.  Even within these 13 subcategories, the classifications seem to be skewed to one subcategory.
+
+2. Incidents occurring 2016 to 2018 are classified into 65 categories and around 190 subcategories. 
+
+***
+
+**Recommendation:**
+
+For the 2009 to 2015 period, ignore the categories and refer to the subcategories of the incidents as categories would be one of two classifications.
+
+For the 2016 to 2018 period, categories are good for an initial analysis and sub-categories for a more detailed granular view. 
+
+***
+
+## Measuring the time series
+
+Are incidents recorded consistently over time?
+
+```{r Volume, echo=FALSE}
+## Review volume of data
+Incidents.dt <- FireDataClean.dt[,.(count = .N), by=format(FireDataClean.dt$A_CreatedAt,'%Y%m')] %>% 
+  setorder()
+colnames(Incidents.dt) <- c("YearMonth", "Count")
+p22 <-ggplot(Incidents.dt, aes(x=YearMonth)) +
+  geom_bar(aes(weight = Count), colour = "darkgoldenrod3", fill = "lightgoldenrod3") +
+  theme(axis.text.x = element_text(hjust=1,angle = 90),
+        plot.title = element_text(hjust = 0.5,size=14, face="bold"))+
+  ggtitle(paste("Volumes of incidents reported per month"))+
+  labs(x="Month",y="Number of Incidents")+
+  scale_x_discrete(breaks=c("200901","201001","201101","201201","201301","201401","201501","201601","201701","201801"),labels=c("Jan 2009","Jan 2010","Jan 2011","Jan 2012","Jan 2013","Jan 2014","Jan 2015","Jan 2016","Jan 2017","Jan 2018"))
+```
+
+```{r fig22, fig.height = 5, fig.width = 10, fig.align = "center", echo=FALSE}
+plot(p22)
+```
+
+***
+
+Doing a bar plot for the number of monthly incidents there is a clear pattern for the first 6 years.  In 2016 it seems incidents were under reported in the first 9 months and with a massive spike in the last quarter.  It seems like the incidents occurring earlier the year was only reported in the last quarter.
+
+Although a consistent pattern seems to return in 2017 and beginning 2018 the number of incidents is higher. This combined with the change in classification that happened in 2016 suggests that the criteria for recording incidents changed along with the classification.  As a result, more incidents are recorded in more detailed classifications from 2017 onwards.  
+
+***
+
+**Recommendation:**
+
+Limit time analysis for the period 2009 to 2015.  
+
+The data recorded for 2016 does not have an even spread suggesting the dates were incorrectly recorded. 
+
+The period 2017 and 2018 might be too short a period to make conclusions on time analysis.
+
+***
+
+## Conclusion
+
+The Data Exploration report points out the strengths and weaknesses of the clean data set. Note the recommendations after each criterion to determine if the data would be suitable to answer the business question
+
+**Here are the highlights of the report**
+
+1. To work with complete entries, limit the analysis to incidents that involved the use of water.  Treat the entries for 2016 and 2017 with caution where Case and District is involved.
+
+2. When reviewing groups of incidents based on their average water consumption, consider excluding incidents where more than 50,000 liters were used or at least exclude incidents where more than 1,000,000 liters were used. These are a small number of outliers that will skew group analysis. Note that most of the incidents using more than a million liters of water occurred in the period 2009 to 2015.  In only 3 incidents post 2015 were more than a million liters of water used.
+
+3. For the 2009 to 2015 period, ignore the categories and refer to the subcategories of the incidents as categories would be one of two classifications.  For the 2016 to 2018 period, categories are good for an initial analysis and sub-categories for a more detailed granular view. 
+
+4. Limit time analysis for the period 2009 to 2015.  The data recorded for 2016 does not have an even spread suggesting the dates were incorrectly recorded. The period 2017 and 2018 might be too short a period to make conclusions on time analysis.
+
+***
+
+(Report copy right of Data Dialect)
+
+
+
