@@ -18,6 +18,8 @@ The Visualisation report highlights the use of water to respond to fire incident
 
 The Visualisation report also highlights issues with the clarity and reliability of the data, with questions for the City of Cape Town on how the incidents were recorded and classified.
 
+------------------------------------------------------------------------------------------------------------------------------------------
+
 ## How was this done ? (Wrangling the Data)
 
 First we applied the three steps of data wrangling
