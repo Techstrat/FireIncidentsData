@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Data Source
 
-The city of Cape Town publishes data on their [Open Data Portal](https://odp-cctegis.opendata.arcgis.com/).  As the site explains:
+The City of Cape Town publishes data on their [Open Data Portal](https://odp-cctegis.opendata.arcgis.com/).  As the site explains:
 
 **The City of Cape Town makes data available that has been approved for use in terms of the Open Data Policy. Access to City information helps to increase transparency, as well as benefit the wider community and other stakeholders.**
 
@@ -21,15 +21,27 @@ To address the business question, we’ve taken the raw data available on [Fire 
 
 ## Answer to the business question
 
-The Visualisation report highlights the use of water to respond to fire incidents over time, in different areas of the City of Cape Town, in different classes of fires as well as the relationship between Cause and Resolution of the fires.  
+Following the **Data Dialect framework** the data is obtained and consolidated into a into a single **Raw Data frame** (FireData on [GitHub](https://github.com/Techstrat/FireIncidentsData)).  The raw data is scrubbed into a **Tidy Data frame** (see FireDataClean in [GitHub](https://github.com/Techstrat/FireIncidentsData)).  The tidy data is explored for relationships as described in the **Data Quality report**.
 
-The Visualisation report also highlights issues with the clarity and reliability of the data, with questions for the City of Cape Town on how the incidents were recorded and classified.
+The business question is reviewed in the **Data Visualisation Report**.  The report highlights :
+
+- the use of water to respond to fire incidents over time 
+
+- the use of water to respond to fire incidents in different areas of the City of Cape Town 
+
+- the use of water to respond to in different classes of fire incidents 
+
+It points out the relationship between the Cause and the Resolution of the fires.  
+
+The **Data Visualisation Report** also highlights issues with the clarity and reliability of the data, with questions for the City of Cape Town on how the incidents were recorded and classified.
 
 ------------------------------------------------------------------------------------------------------------------------------------------
 
 ## How was this done ? (Wrangling the Data)
 
-First we applied the three steps of data wrangling
+Before producing the **Data Visualisation Report**, the data needed to be obtained, scrubbed and explored.
+
+We applied the three steps of **Data Wrangling** completing the Source the Data step in the **Data Dialect framework**.
 
 ![](ComponentsWrangling.png)
 
@@ -37,22 +49,23 @@ First we applied the three steps of data wrangling
 
 ### 1.	Obtain the Data
 
-In the Obtain step the zipped [Safety and Security – Fire Incidents](https://odp-cctegis.opendata.arcgis.com/datasets/fire-incidences) source files listed on the City of Cape Town Open Data Portal are downloaded, unzipped and merged into a single raw data file.  
+In the Obtain step the zipped [Safety and Security – Fire Incidents](https://odp-cctegis.opendata.arcgis.com/datasets/fire-incidences) source files listed on the [City of Cape Town Open Data Portal](https://odp-cctegis.opendata.arcgis.com/) are downloaded, unzipped and merged into a **Raw Data frame** (FireData on [GitHub](https://github.com/Techstrat/FireIncidentsData)).  
 
 ------------------------------------------------------------------------------------------------------------------------------------------
 
 When the City of Cape Town published the data, it was saved in an [ODS format](https://fileinfo.com/extension/ods) and zipped.  
 
-To access the data, the Zipped source files are manually downloaded and unzipped.  Once unzipped, two scripts are applied:
+To access the data, the zipped source files are manually downloaded and unzipped.  Once unzipped, two scripts are applied:
 
-1.	**WranglingFireData_ReadIn.R** in GitHub
+1.	**WranglingFireData_ReadIn.R** (available on [GitHub](https://github.com/Techstrat/FireIncidentsData))
     
-This is a simple script that reads the ODS files and save them as R objects. It performs no other data manipulation. Reading all the ODS files takes over 2 hours, but once this script is run, the files are accessible for an r-script to read within seconds.
+This is a simple script that reads the ODS files and save them as R objects. It performs no other data manipulation. Reading all the ODS files takes over 2 hours, but once this script is run, the resulting data frames are accessible for an r-script to read within seconds.
     
-2.	**WranglingFireData_Merge.R** in GitHub
+2.	**WranglingFireData_Merge.R** (available on [GitHub](https://github.com/Techstrat/FireIncidentsData))
 
-The aim of the script is to merge the different sourced files into a single raw data file. 
-The script reads the data files saved in R objects.  Before merging the data files is lightly scrubbed, just enough so they can merge into a single file.  
+The aim of the script is to merge the different data frames into a single **Raw Data frame** (FireData on [GitHub](https://github.com/Techstrat/FireIncidentsData)). 
+
+The script reads the data frames saved in R objects.  Before merging the data is lightly scrubbed, just enough so they can merge into a single data frame.  
 
 The scrubbing includes:
     
@@ -63,8 +76,10 @@ The scrubbing includes:
 *	Removing columns that is not common across the files
     
 *	Converting Dates to a format common across the files
+
+*   The incidents for Q4 2016 do not have Cause and Sub-Council columns and the incidents for Q1 2017 do not have a Sub-Council column.  These columns were added with blank values to allow the joining of all the quarterly files. 
     
-In the resulting FireData data frame, each incident contains 12 fields that were identified as common to all incidents:
+In the resulting **Raw Data frame** (FireData on [GitHub](https://github.com/Techstrat/FireIncidentsData)), each incident contains 12 fields that were identified as common to all incidents:
 
 | Field                 | Description                                                        |
 | :---------------------| :------------------------------------------------------------------|
@@ -72,24 +87,22 @@ In the resulting FireData data frame, each incident contains 12 fields that were
 | B_Service_Request     | The service request number                                         |
 | C_WaterUsage	        | Liters of water used to resolve the incident                       |
 | D_Category            | The category of the incident                                       |
-| E_Sub_Category	      | The subcategory of the incident                                    |
+| E_Sub_Category	    | The subcategory of the incident                                    |
 | F_Suburb            	| The suburb where the incident occurred                             |
 | F_Town              	| The town within the municipality where the incident occurred       |
 | G_District          	| District of the fire station that responded                        |
 | G_SubCouncil        	| One of 20 City of Cape Town sub councils the incident relates to   |
-| H_Cause	              | Cause of the fire                                                  |
+| H_Cause	            | Cause of the fire                                                  |
 | I_Resolution	        | Resolution of the fire                                             |
 | J_Temperature       	| The temperature interval for the day of the incident               |
 
-The data is still raw.  
+Although merged into a single **Raw Data frame** (FireData on [GitHub](https://github.com/Techstrat/FireIncidentsData)), the data is still considered dirty:  
 
 * Some data fields like the creation date have inconsistent formats.
 
 * Manually entered fields like Suburb and Town has many spelling mistakes.
 
-* There are many missing values that are either blank or populated with N/A.  
-
-* The incidents for Q4 2016 did not have Cause and Sub-Council columns and the incidents for Q1 2017 did not have a Sub-Council column.  These columns were added with blank values to allow the joining of all the quarterly files. 
+* There are many missing values that are either blank or populated with N/A. 
 
 * Some columns have similar but different entries using different combinations of upper- and lower-case letters and abbreviations.
 
@@ -99,9 +112,9 @@ All these issues are addressed in the next step.
 
 ### 2.	Scrub the Data
 
-The scrubbing script (**WranglingFireData_Cleanup.R** in GitHub) is a time-consuming to develop.  Once developed, the script runs in a few seconds.  The script uses logic to determine the correct values, correcting spelling mistakes from correction input files, accepting missing values and discard corrupted entries.  It reads spelling correction and mapping information from three different comma delimited files.  
+The scrubbing script (**WranglingFireData_Cleanup.R** available on [GitHub](https://github.com/Techstrat/FireIncidentsData)) is time-consuming to develop.  Once developed however, the script runs in a few seconds.  The script uses logic to determine the correct values, correcting spelling mistakes from correction input files, accepting missing values and discard corrupted entries.  It reads spelling correction and mapping information from three different comma delimited files.  
 
-The Scrub script takes the Raw Data file as input and produces a Tidy Data file.
+The scrubbing script takes the **Raw Data frame** (see FireData in [GitHub](https://github.com/Techstrat/FireIncidentsData)) as input and produces a **Tidy Data frame** (see FireDataClean in [GitHub](https://github.com/Techstrat/FireIncidentsData)).
 
 ------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -111,63 +124,83 @@ To get from Raw Data to Tidy Data, the script performs the following tasks :
 
 2.	Align entries where text is very similar.
 
-3.	Discard the one entry that does not contain a date.
+3.	Discard the one line that does not contain a date.
 
-4.	Align the sub council entries (refer to the SubCouncils.csv file and [City of Cape Town list of subcouncils:](https://www.capetown.gov.za/Family%20and%20home/Meet-the-City/City-Council/find-your-councillor-ward-or-subcouncil/show-subcouncils))
+4.	Align the sub council entries (refer to **SubCouncils.csv** on [GitHub](https://github.com/Techstrat/FireIncidentsData) and [City of Cape Town list of subcouncils website](https://www.capetown.gov.za/Family%20and%20home/Meet-the-City/City-Council/find-your-councillor-ward-or-subcouncil/show-subcouncils))
 
-Because Suburb and Town were completed manually resulting in many typos, missing data and miss matches, the scrubbing script needs to do several updates to these two columns.
+Because Suburb and Town were completed manually, it contains many typos, missing data and miss matches. The scrubbing script needs to do several updates to these two columns.
 
-5.	Correct spelling mistakes for Suburbs. (refer to SuburbsCorrect.csv)
+5.	Correct spelling mistakes for Suburbs. (refer to **SuburbsCorrect.csv** on [GitHub](https://github.com/Techstrat/FireIncidentsData))
 
-6.	Remove special characters and correct spelling mistakes for Towns. (refer to TownsCorrection.csv)
+6.	Remove special characters and correct spelling mistakes for Towns. (refer to **TownsCorrection.csv** on [GitHub](https://github.com/Techstrat/FireIncidentsData))
 
-7.	Apply iterative logic to correct and complete the Town and Suburb entries.  It assumes a town is an area that has more than 2000 entries in the original Town column.  All other entries are mapped as Suburbs within a town.  
+7.	Apply iterative logic to correct and complete the Town and Suburb entries.  It assumes a Town is an area that has more than 2000 entries in the original Town column.  All other entries are mapped as Suburbs within a Town.  
 
-The output is a tidy data table of over 105 000 incidents recorded over more than 9 years. 
+The output is a **Tidy Data frame** (see FireDataClean in [GitHub](https://github.com/Techstrat/FireIncidentsData)) of over 105 000 incidents recorded over more than 9 years. 
 
 *	The service request number is unique.
 
-*	There are several N/A entries for specific fields (see the graphs in the Exploratory report).
+*	There are still several N/A entries for specific fields (see the graphs in the **Data Quality report**).
 
 The data formats are standardised
 
 *	The date of the incident is recoded in the A_CreatedAt column as date/time.
 
-*   The Total water used is recorded in the C_WaterUsage column as numeric.
+*   The total water used per incident is recorded in the C_WaterUsage column as numeric.
 
-*	The rest of the incident information is recorded in  10 columns as factors.
+*	The rest of the incident information is recorded in  10 factor columns.
 
 ------------------------------------------------------------------------------------------------------------------------------------------
 
 ### 3.	Explore the Data
 
-The exploration script makes no changes to the file. It investigates the quality of the data, identifying weaknesses that will impact the quality of the analysis results.  It recommends how the data can be applied and what to avoid.
+The exploration script makes no changes to the file. It investigates the quality of the data, identifying weaknesses and patterns in the data that will impact the quality of the analysis results.  It recommends how the data can be applied and what to avoid.
 
-The **FireIncidentsDataQuality.Rmd** script takes the Tidy Data file as input and produces the **FireIncidentsDataQuality.html** report.
+The **FireIncidentsDataQuality.Rmd** script (available on [GitHub](https://github.com/Techstrat/FireIncidentsData)) takes the **Tidy Data frame** (FireDataClean on [GitHub](https://github.com/Techstrat/FireIncidentsData)) as input and produces the **Data Quality report** in html format.
 
 ------------------------------------------------------------------------------------------------------------------------------------------
 
-These are the three data wrangling steps.  The data is now ready to be used as input to further Statistical inference, Regression analysis or Machine learning, most likely combining it with other tidy data files like dam levels or City growth.  
+The three data wrangling steps are now complete.  With the **Source the Data** step in the **Data Dialect Framework** completed, the following artifacts are available:
 
-In this case the tidy data is pumped through an Interpretation script. The R script produce a Data Visualisation Report to address the business question.
+1. The **Raw Data frame** (FireData on [GitHub](https://github.com/Techstrat/FireIncidentsData))
+
+2. The **Tidy Data frame** (FireDataClean on [GitHub](https://github.com/Techstrat/FireIncidentsData))
+
+3. The **Data Quality report**
+
+4. The four scripts used to produce the data frames and report (all available on [GitHub](https://github.com/Techstrat/FireIncidentsData)) 
+
+* **WranglingFireData_Merge.R**
+
+* **WranglingFireData_ReadIn.R**
+
+* **WranglingFireData_Cleanup.R**
+
+* **FireIncidentsDataQuality.Rmd**
+
+The data is now ready to be used by the business as input to Interpret or for further Statistical inference, Regression analysis or Machine learning.  It is ready to combine with other tidy data frames containing related information like dam levels or city growth.  
+
+The business can also decide, based on the **Data Quality report** that the set data is not the correct data to answer the business question or the data is incomplete and can not be used in any analytical excercise, terminating the project at the end of the Source the Data step.
+
+To respond to the business question, we've chosen to Interpret the **Tidy Data frame**.
 
 ------------------------------------------------------------------------------------------------------------------------------------------
 
 ## How was this done (Interpreting the Data)
 
-Using the advice from the Data Quality Report the Interpretation script is used to read in the tidy data and produce the Data Visualisation report.
+Using the advice from the **Data Quality Report** the **FireIncidentsDataVisualisation.Rmd** script (available on [GitHub](https://github.com/Techstrat/FireIncidentsData)) is developed and used to read in the **Tidy Data frame** and produce the **Data Visualisation report**.
 
 
 ![](Interpret.png)
 
-Where the Data Quality report looked at the completeness of the data, the Data Visualisation script demonstrate how the relationships in the data can be analised to address the business question.  
+Where the **Data Quality report** looked at the completeness of the data, the **Data Visualisation report** demonstrates how the relationships in the data can be interpreted to address the business question.  
 
-The **FireIncidentsDataVisualisation.Rmd** script available in GitHub takes the Tidy Data file as input and produces the **FireIncidentsDataVisualisation.html** report.
+The **FireIncidentsDataVisualisation.Rmd** script (available on [GitHub](https://github.com/Techstrat/FireIncidentsData)), takes the **Tidy Data frame** (FireDataClean on [GitHub](https://github.com/Techstrat/FireIncidentsData)) as input and produces the **Data Visualisation report** in html format.
 
 ------------------------------------------------------------------------------------------------------------------------------------------
 
 *This exercise of Data Wrangling and Data Visualisation was derived from data published on the City of Cape Town data portal without any further input from the City of Cape Town.*
 
-*The analysis was done to demonstrate of the Data Dialect data wrangling framework and not applied for any commercial use.*
+*The analysis was done to demonstrate of the Data Dialect framework taking raw unstructured data and preparing tidy data for further analytical use.  The results were not applied for any further commercial use.*
 
 
